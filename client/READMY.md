@@ -1,0 +1,1 @@
+gcc ./client/main.c -l wayland-client -o myclient

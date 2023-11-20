@@ -1,1 +1,1 @@
-sudo apt install pkg-config libwlroots libpixman-1-dev libwayland-dev wayland-protocols libcairo2-dev libdrm-dev libegl1-mesa-dev libglm-dev libinput-dev libxkbcommon-dev  libgbm-dev libgtkmm-3.0-dev
+sudo apt install pkg-config libwlroots-dev libpixman-1-dev libwayland-dev wayland-protocols libcairo2-dev libdrm-dev libegl1-mesa-dev libglm-dev libinput-dev libxkbcommon-dev  libgbm-dev libgtkmm-3.0-dev

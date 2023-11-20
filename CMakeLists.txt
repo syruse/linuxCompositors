@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.16)
 include(ExternalProject)
 set(APP_NAME wayland-server)
 project(${APP_NAME} VERSION 1.0 LANGUAGES C CXX)
@@ -31,25 +31,11 @@ endif()
 find_package(Wayland REQUIRED)
 find_package(EGL REQUIRED)
 
-#ExternalProject_Add(wlroots
-#        SOURCE_DIR ${CMAKE_SOURCE_DIR}/wlroots
-#        CONFIGURE_COMMAND meson setup ${MESON_BUILD_TYPE}
-#            # wlroots options
-#            -D xcb-errors=disabled
-#            -D xwayland=disabled
-#            -D examples=false
-#            -D renderers=
-#            -D backends=
-#            -D allocators=
-#            -D session=disabled
-#            ${CMAKE_SOURCE_DIR}/wlroots
-#        BUILD_COMMAND meson compile
-#        INSTALL_COMMAND meson install
-#    )
-
 file(GLOB SRCS ${PROJECT_SOURCE_DIR}/**.cpp)
 
 add_executable(${APP_NAME} main.c ${SRCS})
+
+target_compile_definitions(${APP_NAME} PRIVATE WLR_USE_UNSTABLE)
 
 target_include_directories(
 	${APP_NAME}
