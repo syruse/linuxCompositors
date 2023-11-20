@@ -3,12 +3,42 @@
 #include <wlr/backend.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
+#include <wlr/types/wlr_surface.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/util/log.h>
+#include <wlr/util/region.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+
+void matrix_projection(float mat[static 9], int width, int height,
+		enum wl_output_transform transform) {
+	memset(mat, 0, sizeof(*mat) * 9);
+
+   static const float transforms[9] = {
+		1.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 1.0f,
+	};
+
+	const float *t = transforms;
+	float x = 2.0f / width;
+	float y = 2.0f / height;
+
+	// Rotation + reflection
+	mat[0] = x * t[0];
+	mat[1] = x * t[1];
+	mat[3] = y * -t[3];
+	mat[4] = y * -t[4];
+
+	// Translation
+	mat[2] = -copysign(1.0f, mat[0] + mat[1]);
+	mat[5] = -copysign(1.0f, mat[3] + mat[4]);
+
+	// Identity
+	mat[8] = 1.0f;
+}
 
 struct wayland_server
 {
@@ -18,6 +48,7 @@ struct wayland_server
    struct wlr_backend *backend;
    struct wlr_output_layout *output_layout;
    struct wl_listener new_output; // when new outputs added
+   struct wl_listener new_surface;
    struct wl_list outputs;
 };
 
@@ -30,6 +61,21 @@ struct wayland_server
         struct wl_list link;
  };
 
+struct wlr_surface * g_surface = NULL;
+
+ static void server_handle_new_surface(struct wl_listener *listener,
+		void *data) {
+	struct wayland_server *server = wl_container_of(listener, server, new_surface);
+	struct wlr_surface *wlr_surface = data;
+
+   g_surface = wlr_surface;
+	//wl_list_insert(&g_surfaces, wlr_surface);
+	/*surface->commit.notify = surface_handle_commit;
+	wl_signal_add(&wlr_surface->events.commit, &surface->commit);
+	surface->destroy.notify = surface_handle_destroy;
+	wl_signal_add(&wlr_surface->events.destroy, &surface->destroy);*/
+}
+
 static void output_frame_notify(struct wl_listener *listener, void *data) {
    	/* This function is called every time an output is ready to display a frame,
 	   * generally at the output's refresh rate (e.g. 60Hz). */
@@ -37,18 +83,32 @@ static void output_frame_notify(struct wl_listener *listener, void *data) {
       struct wlr_output *wlr_output = data;
       struct wlr_renderer *renderer = output->server->renderer;
 
-	   /* wlr_output_attach_render makes the OpenGL context current. */
-	   if (!wlr_output_attach_render(output->wlr_output, NULL)) {
-	   	return;
-	   }
-	   /* The "effective" resolution can change if you rotate your outputs. */
-	   int width, height;
-	   wlr_output_effective_resolution(output->wlr_output, &width, &height);
-	   /* Begin the renderer (calls glViewport and some other GL sanity checks) */
+      // wlr_output_attach_render makes the OpenGL context current.
+      if (!wlr_output_attach_render(output->wlr_output, NULL)) {
+      	return;
+      }
+      // The "effective" resolution can change if you rotate your outputs.
+      int width, height;
+      wlr_output_effective_resolution(output->wlr_output, &width, &height);
+      // Begin the renderer (calls glViewport and some other GL sanity checks)
       wlr_renderer_begin(renderer, width, height);
 
-      float color[4] = {1.0, 0, 0, 1.0};
+      float color[4] = {1.0, 1.0, 1.0, 1.0};
       wlr_renderer_clear(renderer, color);
+
+      if (g_surface != NULL)
+      {
+         struct timespec now;
+
+         if (wlr_surface_has_buffer(g_surface))
+         {
+            float matrix[16];
+            matrix_projection(matrix, width, height, WL_OUTPUT_TRANSFORM_NORMAL);
+            wlr_render_texture(renderer, wlr_surface_get_texture(g_surface), &matrix, 0, 0, 1.0f);
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            wlr_surface_send_frame_done(g_surface, &now);
+         }
+      }
 
       // swap buffers and show final frame
       wlr_renderer_end(renderer);
@@ -114,6 +174,8 @@ static void new_output_notify(struct wl_listener *listener, void *data) {
       //                                                                       wlr_output);
       //struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr_output);
       //wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
+
+      wlr_output_create_global(wlr_output);
 }
 
 int main(int argc, char **argv)
@@ -153,7 +215,7 @@ int main(int argc, char **argv)
 	 * to dig your fingers in and play with their behavior if you want. Note that
 	 * the clients cannot set the selection directly without compositor approval,
 	 * see the handling of the request_set_selection event below.*/
-	wlr_compositor_create(server.wl_display, server.renderer);
+	struct wlr_compositor *compositor = wlr_compositor_create(server.wl_display, server.renderer);
 	//wlr_data_device_manager_create(server.wl_display);
 
 	/* Creates an output layout, which a wlroots utility for working with an
@@ -163,6 +225,9 @@ int main(int argc, char **argv)
    wl_list_init(&server.outputs);
    server.new_output.notify = new_output_notify;
    wl_signal_add(&server.backend->events.new_output, &server.new_output);
+
+   server.new_surface.notify = server_handle_new_surface;
+   wl_signal_add(&compositor->events.new_surface, &server.new_surface);
 
    /* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(server.wl_display);
@@ -191,6 +256,10 @@ int main(int argc, char **argv)
 	 * frame events at the refresh rate, and so on. */
 	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
 			socket);
+
+   //additional protocol with roles to surfaces like popup or toplevel window
+   //wlr_xdg_shell_create(server.wl_display);
+
 	wl_display_run(server.wl_display);
 
    wl_display_destroy(server.wl_display);
