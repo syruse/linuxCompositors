@@ -1,9 +1,7 @@
-#define WLR_USE_UNSTABLE
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
-#include <wlr/types/wlr_surface.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/util/log.h>
@@ -11,6 +9,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+
+#define COMPOSITOR_VER 1
 
 void matrix_projection(float mat[static 9], int width, int height,
 		enum wl_output_transform transform) {
@@ -191,7 +191,7 @@ int main(int argc, char **argv)
 	 * output hardware. The autocreate option will choose the most suitable
 	 * backend based on the current environment, such as opening an X11 window
 	 * if an X11 server is running. */
-	server.backend = wlr_backend_autocreate(server.wl_display);
+	server.backend = wlr_backend_autocreate(server.wl_display, NULL);
    assert(server.backend);
 
 	/* If we don't provide a renderer, autocreate makes a GLES2 renderer for us.
@@ -215,7 +215,7 @@ int main(int argc, char **argv)
 	 * to dig your fingers in and play with their behavior if you want. Note that
 	 * the clients cannot set the selection directly without compositor approval,
 	 * see the handling of the request_set_selection event below.*/
-	struct wlr_compositor *compositor = wlr_compositor_create(server.wl_display, server.renderer);
+	struct wlr_compositor *compositor = wlr_compositor_create(server.wl_display, COMPOSITOR_VER, server.renderer);
 	//wlr_data_device_manager_create(server.wl_display);
 
 	/* Creates an output layout, which a wlroots utility for working with an
