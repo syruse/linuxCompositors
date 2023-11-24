@@ -103,7 +103,7 @@ ExternalProject_Add(libdrm
         -D amdgpu=disabled
         -D etnaviv=disabled
         -D freedreno=disabled
-        -D intel=disabled
+        -D intel=enabled
         -D nouveau=disabled
         -D radeon=disabled
         -D vc4=disabled
@@ -173,8 +173,8 @@ ExternalProject_Add(wlroots
         -D examples=false
         -D renderers=gles2
         -D backends=x11
-        -D allocators=gbm
-        -D session=auto
+        -D allocators=auto
+        -D session=disabled
         ${CMAKE_SOURCE_DIR}/thirdparty/wlroots
     BUILD_COMMAND meson compile
     INSTALL_COMMAND meson install
@@ -183,6 +183,19 @@ ExternalProject_Add(wlroots
 )
 
 file(GLOB SRCS ${PROJECT_SOURCE_DIR}/**.cpp)
+
+add_executable(${APP_NAME}-client client/main.c)
+target_compile_definitions(${APP_NAME}-client PRIVATE WLR_USE_UNSTABLE)
+target_include_directories(
+	${APP_NAME}-client
+	PRIVATE
+	${CMAKE_BINARY_DIR}/wayland-prefix/include
+)
+add_dependencies(${APP_NAME}-client wlroots)
+target_link_libraries(
+	${APP_NAME}-client
+	${CMAKE_BINARY_DIR}/wayland-prefix/lib/libwayland-client.so
+)
 
 add_executable(${APP_NAME} main.c ${SRCS})
 target_compile_definitions(${APP_NAME} PRIVATE WLR_USE_UNSTABLE)

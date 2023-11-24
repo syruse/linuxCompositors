@@ -4,7 +4,7 @@ sudo python3 -m pip install meson and add to PATH
 git submodule update --recursive --init
 
 before running make sure you are using our custome libdrm
-export LD_PRELOAD="/home/yevhen/Develop/HomePet/linuxCompositors/build/libdrm-prefix/lib/libdrm.so.2 
+export LD_PRELOAD=/home/yevhen/Develop/HomePet/linuxCompositors/build/libdrm-prefix/lib/libdrm.so.2 
 /home/yevhen/Develop/HomePet/linuxCompositors/build/wayland-scanner-prefix/lib/x86_64-linux-gnu/libwayland-client.so.0 
 /home/yevhen/Develop/HomePet/linuxCompositors/build/xkbcommon-prefix/lib/libxkbcommon.so.0 
 /home/yevhen/Develop/HomePet/linuxCompositors/build/pixman-prefix/lib/libpixman-1.so.0"

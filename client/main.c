@@ -21,7 +21,7 @@ void registry_global_handler
 ) {
     if (strcmp(interface, "wl_compositor") == 0) {
         compositor = wl_registry_bind(registry, name,
-            &wl_compositor_interface, 3);
+            &wl_compositor_interface, 1);
     } else if (strcmp(interface, "wl_shm") == 0) {
         shm = wl_registry_bind(registry, name,
             &wl_shm_interface, 1);
@@ -56,8 +56,8 @@ int main(void)
     //struct wl_shell_surface *shell_surface = wl_shell_get_shell_surface(shell, surface);
     //wl_shell_surface_set_toplevel(shell_surface);
 
-    int width = 200;
-    int height = 200;
+    int width = 300;
+    int height = 300;
     int stride = width * 4;
     int size = stride * height;  // bytes
 
@@ -89,10 +89,10 @@ int main(void)
                 unsigned char alpha;
             } *px = (struct pixel *)(data + y * stride + x * 4);
 
-            // yellow
+            // red
             px->alpha = 255;
             px->red = 255;
-            px->green = 255;
+            px->green = 0;
             px->blue = 0;
         }
     }

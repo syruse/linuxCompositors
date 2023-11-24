@@ -4,6 +4,7 @@
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_matrix.h>
 #include <wlr/util/log.h>
 #include <wlr/util/region.h>
 #include <stdio.h>
@@ -11,34 +12,6 @@
 #include <assert.h>
 
 #define COMPOSITOR_VER 1
-
-void matrix_projection(float mat[static 9], int width, int height,
-		enum wl_output_transform transform) {
-	memset(mat, 0, sizeof(*mat) * 9);
-
-   static const float transforms[9] = {
-		1.0f, 0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 1.0f,
-	};
-
-	const float *t = transforms;
-	float x = 2.0f / width;
-	float y = 2.0f / height;
-
-	// Rotation + reflection
-	mat[0] = x * t[0];
-	mat[1] = x * t[1];
-	mat[3] = y * -t[3];
-	mat[4] = y * -t[4];
-
-	// Translation
-	mat[2] = -copysign(1.0f, mat[0] + mat[1]);
-	mat[5] = -copysign(1.0f, mat[3] + mat[4]);
-
-	// Identity
-	mat[8] = 1.0f;
-}
 
 struct wayland_server
 {
@@ -96,14 +69,24 @@ static void output_frame_notify(struct wl_listener *listener, void *data) {
       float color[4] = {1.0, 1.0, 1.0, 1.0};
       wlr_renderer_clear(renderer, color);
 
+      float matrix[16];
+      //matrix_projection(matrix, width, height, WL_OUTPUT_TRANSFORM_NORMAL);
+      wlr_matrix_identity(matrix);
+	   struct wlr_box box = {
+	   	.x = 0,
+	   	.y = 0,
+	   	.width = 200,
+	   	.height = 200,
+	   };
+      float rect_color[4] = {0.0, 0.0, 0.0, 1.0};
+      wlr_render_rect(renderer, &box,  rect_color, matrix);
+
       if (g_surface != NULL)
       {
          struct timespec now;
 
          if (wlr_surface_has_buffer(g_surface))
          {
-            float matrix[16];
-            matrix_projection(matrix, width, height, WL_OUTPUT_TRANSFORM_NORMAL);
             wlr_render_texture(renderer, wlr_surface_get_texture(g_surface), &matrix, 0, 0, 1.0f);
             clock_gettime(CLOCK_MONOTONIC, &now);
             wlr_surface_send_frame_done(g_surface, &now);
@@ -133,19 +116,24 @@ static void new_output_notify(struct wl_listener *listener, void *data) {
 	   * and our renderer. Must be done once, before commiting the output */
 	   wlr_output_init_render(wlr_output, server->allocator, server->renderer);
 
+      /* The output may be disabled, switch it on. */
+      struct wlr_output_state state;
+      wlr_output_state_init(&state);
+      wlr_output_state_set_enabled(&state, true);
+
       /* Some backends don't have modes. DRM+KMS does, and we need to set a mode
        * before we can use the output. The mode is a tuple of (width, height,
        * refresh rate), and each monitor supports only a specific set of modes. We
        * just pick the monitor's preferred mode, a more sophisticated compositor
        * would let the user configure it. */
-      if (!wl_list_empty(&wlr_output->modes)) {
-      	struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
-      	wlr_output_set_mode(wlr_output, mode);
-      	wlr_output_enable(wlr_output, true);
-      	if (!wlr_output_commit(wlr_output)) {
-      		return;
-      	}
+      struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
+      if (mode != NULL) {
+      	wlr_output_state_set_mode(&state, mode);
       }
+
+      /* Atomically applies the new output state. */
+      wlr_output_commit_state(wlr_output, &state);
+      wlr_output_state_finish(&state);
 
       struct target_output *output = calloc(1, sizeof(struct target_output));
       clock_gettime(CLOCK_MONOTONIC, &output->last_frame);
@@ -170,12 +158,8 @@ static void new_output_notify(struct wl_listener *listener, void *data) {
        * display, which Wayland clients can see to find out information about the
        * output (such as DPI, scale factor, manufacturer, etc).
        */
-      //struct wlr_output_layout_output *l_output = wlr_output_layout_add_auto(server->output_layout,
-      //                                                                       wlr_output);
-      //struct wlr_scene_output *scene_output = wlr_scene_output_create(server->scene, wlr_output);
-      //wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
 
-      wlr_output_create_global(wlr_output);
+	   wlr_output_create_global(wlr_output);
 }
 
 int main(int argc, char **argv)
